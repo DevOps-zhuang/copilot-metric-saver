@@ -543,6 +543,16 @@ const runJob = async () => {
                 // Get current time and log it.
                 console.log(`Usage Data saved successfully for tenant ${tenant.scopeName} at ${now}`);
 
+                //wait for 1 second before saving the metrics data
+                await new Promise(resolve => setTimeout(resolve, 1000));
+
+                const metricsService = await CopilotServiceFactory.createMetricsService(tenant);
+                await metricsService.saveMetrics();
+                // Get current time and log it.
+                console.log(`Metrics Data saved successfully for tenant ${tenant.scopeName} at ${now}`);
+
+                //wait for 1 second before saving the seat data
+                await new Promise(resolve => setTimeout(resolve, 1000));
                 // get the seat service for the tenant, and save the seat data
                 const seatService = await CopilotServiceFactory.createSeatService(tenant);
                 await seatService.saveSeatData();
@@ -560,7 +570,7 @@ const runJob = async () => {
 };
 
 // Run it once the server starts
-//runJob();
+runJob();
 
 // Run job every 12 hours
 setInterval(runJob, 12 * 60 * 60 * 1000);
