@@ -538,14 +538,14 @@ const runJob = async () => {
                 const now = new Date();
              //   console.log('this tenant is:', tenant);
                 // get the usage service for the tenant, and save the usage data
-                const usageService = await CopilotServiceFactory.createUsageService(tenant);
+                /* const usageService = await CopilotServiceFactory.createUsageService(tenant);
                 await usageService.saveUsageData();
                 // Get current time and log it.
                 console.log(`Usage Data saved successfully for tenant ${tenant.scopeName} at ${now}`);
 
                 //wait for 1 second before saving the metrics data
                 await new Promise(resolve => setTimeout(resolve, 1000));
-
+ */
                 const metricsService = await CopilotServiceFactory.createMetricsService(tenant);
                 await metricsService.saveMetrics();
                 // Get current time and log it.
@@ -558,6 +558,9 @@ const runJob = async () => {
                 await seatService.saveSeatData();
                 // Get current time and log it.
                 console.log(`Seat Data saved successfully for tenant ${tenant.scopeName} at ${now}`);
+                
+                 //wait for 1 second before saving the metrics data
+                 await new Promise(resolve => setTimeout(resolve, 1000));
             } catch (error) {
                 const now = new Date();
                 console.error(`Error saving usage data for tenant ${tenant.scopeName} at ${now}:`, error);
@@ -664,11 +667,19 @@ app.get(['/api/:scopeType/:scopeName/copilot/metrics', '/api/:scopeType/:scopeNa
         let { scopeType, scopeName, team_slug } = req.params;
         const { since, until, page = 1, per_page = 60 } = req.query;
         const token = req.headers['authorization']?.split(' ')[1]; // Extract token from Bearer token
+        
+        //print the tokent and scopeType and scopeName and team_slug
+        console.log('token:', token);
+        console.log('scopeType:', scopeType);
+        console.log('scopeName:', scopeName);
+        console.log('team_slug:', team_slug);
 
         if (!scopeType || !scopeName || !token) {
             res.status(400).send('Missing required parameters: scopeType, scopeName, token');
             return;
         }
+
+        
 
         // Validate inputs
         const validationResult: ScopeValidationResult = validateScope(scopeType, scopeName, token, team_slug);
@@ -681,14 +692,21 @@ app.get(['/api/:scopeType/:scopeName/copilot/metrics', '/api/:scopeType/:scopeNa
         scopeType = validationResult.normalizedScopeType;
         team_slug = validationResult.normalizedTeamSlug;
 
+        //out the scopeType and team_slug
+        console.log('scopeType after normalized:', scopeType);
+        console.log('team_slug after normalized:', team_slug);
+
         const tenant = new Tenant(scopeType as 'organization' | 'enterprise', scopeName as string, token as string, team_slug as string, true);
+        console.log('tenant:', tenant);
 
         // Validate the tenant before continuing
         const isValidTenant = await tenant.validateTenant();
         if (!isValidTenant) {
+            console.log('Invalid tenant data:', isValidTenant);
             res.status(400).send('Invalid tenant data');
             return;
         }
+
 
         // Create a tenant service to save the tenant data
         const tenantService = TenantServiceFactory.createTenantService();
