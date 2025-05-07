@@ -62,13 +62,12 @@ export class FileMetricsStorage implements IMetricsStorage {
     private getFilePath(teamSlug?: string): string {
         if (!teamSlug) {
             teamSlug = this.team;
-          }
-        if (teamSlug!=='') {
-          return path.join(__dirname, this.dirName, `${teamSlug}_metrics.json`);
-        } else {
-          return path.join(__dirname, this.dirName, `${this.scopeType}_${this.scopeName}_metrics.json`);
         }
-
+        if (teamSlug && teamSlug !== '') {
+            return path.resolve(this.ROOT_DIR, `${this.scopeType}_${this.scopeName}`, `${teamSlug}_metrics.json`);
+        } else {
+            return path.resolve(this.ROOT_DIR, `${this.scopeType}_${this.scopeName}`, `${this.scopeType}_${this.scopeName}_metrics.json`);
+        }
     }
 
     private getCurrentTimeFormatted(): string {
@@ -81,20 +80,16 @@ export class FileMetricsStorage implements IMetricsStorage {
     }
 
     private generateTimerFileFullName(teamSlug?: string): string {
-    
         // if team is not provided, by default, will use the team information from the tenant
         if (!teamSlug) {
             teamSlug = this.team;
-          }
+        }
    
-        if (teamSlug && teamSlug.trim()!=='') {
-            return path.join(__dirname, this.dirName, `team_${teamSlug}_${this.getCurrentTimeFormatted()}_${this.getRandomTwoDigits()}_metrics.json`);
+        if (teamSlug && teamSlug.trim() !== '') {
+            return path.resolve(this.ROOT_DIR, `${this.scopeType}_${this.scopeName}`, `team_${teamSlug}_${this.getCurrentTimeFormatted()}_${this.getRandomTwoDigits()}_metrics.json`);
+        } else {
+            return path.resolve(this.ROOT_DIR, `${this.scopeType}_${this.scopeName}`, `${this.scopeType}_${this.scopeName}_${this.getCurrentTimeFormatted()}_${this.getRandomTwoDigits()}_metrics.json`);
         }
-        else
-        {
-            return path.join(__dirname, this.dirName, `${this.scopeType}_${this.scopeName}_${this.getCurrentTimeFormatted()}_${this.getRandomTwoDigits()}_metrics.json`);
-        }
-        //return path.join(__dirname, this.dirName, `${this.scopeType}_${this.scopeName}_${this.getCurrentTimeFormatted()}_${this.getRandomTwoDigits()}_metrics.json`);
     }
 
     public async getMetrics( teamSlug?: string): Promise<CopilotMetrics[]> {
