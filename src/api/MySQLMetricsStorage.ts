@@ -112,12 +112,12 @@ public async saveMetrics(metricsData: CopilotMetrics[], team_slug?: string): Pro
         SELECT id FROM copilot_metrics
         WHERE date = ? AND scope_type = ? AND scope_name = ? AND team = ?
         `,
-        [
+        this.sanitizeSqlParams([
           metric.date,
           this.type,
           this.scope_name,
           team_slug || '',
-        ]
+        ])
       );
       // if record already exists, check if the fields are the same
       if (existingRows.length > 0) {
@@ -147,14 +147,14 @@ public async saveMetrics(metricsData: CopilotMetrics[], team_slug?: string): Pro
             team
           ) VALUES (?, ?, ?, ?, ?, ?)
           `,
-          [
+          this.sanitizeSqlParams([
             metric.date,
             metric.total_active_users,
             metric.total_engaged_users,
             this.type,
             this.scope_name,
             team_slug || '',
-          ]
+          ])
         );
 
         const metricsId = (metricsResult as any).insertId;
@@ -171,7 +171,7 @@ public async saveMetrics(metricsData: CopilotMetrics[], team_slug?: string): Pro
               total_engaged_users
             ) VALUES (?, ?)
             `,
-            [metricsId, copilotIdeCodeCompletions.total_engaged_users]
+            this.sanitizeSqlParams([metricsId, copilotIdeCodeCompletions.total_engaged_users])
           );
 
           const completionId = (completionResult as any).insertId;
@@ -187,12 +187,12 @@ public async saveMetrics(metricsData: CopilotMetrics[], team_slug?: string): Pro
                 total_engaged_users
               ) VALUES (?, ?, ?, ?)
               `,
-              [
+              this.sanitizeSqlParams([
                 metricsId,
                 completionId,
                 language.name,
                 language.total_engaged_users,
-              ]
+              ])
             );
           }
 
@@ -207,18 +207,21 @@ public async saveMetrics(metricsData: CopilotMetrics[], team_slug?: string): Pro
                 total_engaged_users
               ) VALUES (?, ?, ?, ?)
               `,
-              [
+              this.sanitizeSqlParams([
                 metricsId,
                 completionId,
                 editor.name,
                 editor.total_engaged_users,
-              ]
+              ])
             );
 
             const editorId = (editorResult as any).insertId;
 
             // Insert models
             for (const model of editor.models) {
+              // 确保模型有所有必需的字段
+              const safeModel = this.ensureModelDefaults(model);
+              
               const [modelResult] = await connection.execute<RowDataPacket[]>(
                 `
                 INSERT INTO copilot_ide_code_completions_editor_models (
@@ -230,20 +233,20 @@ public async saveMetrics(metricsData: CopilotMetrics[], team_slug?: string): Pro
                   total_engaged_users
                 ) VALUES (?, ?, ?, ?, ?, ?)
                 `,
-                [
+                this.sanitizeSqlParams([
                   metricsId,
                   editorId,
-                  model.name,
-                  model.is_custom_model,
-                  model.custom_model_training_date,
-                  model.total_engaged_users,
-                ]
+                  safeModel.name,
+                  safeModel.is_custom_model,
+                  safeModel.custom_model_training_date,
+                  safeModel.total_engaged_users,
+                ])
               );
 
               const modelId = (modelResult as any).insertId;
 
               // Insert model languages
-              for (const language of model.languages) {
+              for (const language of safeModel.languages) {
                 await connection.execute<RowDataPacket[]>(
                   `
                   INSERT INTO copilot_ide_code_completions_editor_model_languages (
@@ -257,7 +260,7 @@ public async saveMetrics(metricsData: CopilotMetrics[], team_slug?: string): Pro
                     total_code_lines_accepted
                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                   `,
-                  [
+                  this.sanitizeSqlParams([
                     metricsId,
                     modelId,
                     language.name,
@@ -266,7 +269,7 @@ public async saveMetrics(metricsData: CopilotMetrics[], team_slug?: string): Pro
                     language.total_code_acceptances,
                     language.total_code_lines_suggested,
                     language.total_code_lines_accepted,
-                  ]
+                  ])
                 );
               }
             }
@@ -285,7 +288,7 @@ public async saveMetrics(metricsData: CopilotMetrics[], team_slug?: string): Pro
               total_engaged_users
             ) VALUES (?, ?)
             `,
-            [metricsId, copilotIdeChat.total_engaged_users]
+            this.sanitizeSqlParams([metricsId, copilotIdeChat.total_engaged_users])
           );
 
           const ideChatId = (ideChatResult as any).insertId;
@@ -301,18 +304,21 @@ public async saveMetrics(metricsData: CopilotMetrics[], team_slug?: string): Pro
                 total_engaged_users
               ) VALUES (?, ?, ?, ?)
               `,
-              [
+              this.sanitizeSqlParams([
                 metricsId,
                 ideChatId,
                 editor.name,
                 editor.total_engaged_users,
-              ]
+              ])
             );
 
             const editorId = (editorResult as any).insertId;
 
             // Insert models
             for (const model of editor.models) {
+              // 确保模型有所有必需的字段
+              const safeModel = this.ensureModelDefaults(model);
+              
               await connection.execute<RowDataPacket[]>(
                 `
                 INSERT INTO copilot_ide_chat_editor_models (
@@ -327,17 +333,17 @@ public async saveMetrics(metricsData: CopilotMetrics[], team_slug?: string): Pro
                   total_chat_copy_events
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 `,
-                [
+                this.sanitizeSqlParams([
                   metricsId,
                   editorId,
-                  model.name,
-                  model.is_custom_model,
-                  model.custom_model_training_date,
-                  model.total_engaged_users,
-                  model.total_chats,
-                  model.total_chat_insertion_events,
-                  model.total_chat_copy_events,
-                ]
+                  safeModel.name,
+                  safeModel.is_custom_model,
+                  safeModel.custom_model_training_date,
+                  safeModel.total_engaged_users,
+                  safeModel.total_chats,
+                  safeModel.total_chat_insertion_events,
+                  safeModel.total_chat_copy_events,
+                ])
               );
             }
           }
@@ -355,13 +361,16 @@ public async saveMetrics(metricsData: CopilotMetrics[], team_slug?: string): Pro
               total_engaged_users
             ) VALUES (?, ?)
             `,
-            [metricsId, copilotDotcomChat.total_engaged_users]
+            this.sanitizeSqlParams([metricsId, copilotDotcomChat.total_engaged_users])
           );
 
           const dotcomChatId = (dotcomChatResult as any).insertId;
 
           // Insert models
           for (const model of copilotDotcomChat.models) {
+            // 确保模型有所有必需的字段
+            const safeModel = this.ensureModelDefaults(model);
+            
             await connection.execute<RowDataPacket[]>(
               `
               INSERT INTO copilot_dotcom_chat_models (
@@ -374,15 +383,15 @@ public async saveMetrics(metricsData: CopilotMetrics[], team_slug?: string): Pro
                 total_chats
               ) VALUES (?, ?, ?, ?, ?, ?, ?)
               `,
-              [
+              this.sanitizeSqlParams([
                 metricsId,
                 dotcomChatId,
-                model.name,
-                model.is_custom_model,
-                model.custom_model_training_date,
-                model.total_engaged_users,
-                model.total_chats,
-              ]
+                safeModel.name,
+                safeModel.is_custom_model,
+                safeModel.custom_model_training_date,
+                safeModel.total_engaged_users,
+                safeModel.total_chats,
+              ])
             );
           }
         }
@@ -399,7 +408,7 @@ public async saveMetrics(metricsData: CopilotMetrics[], team_slug?: string): Pro
               total_engaged_users
             ) VALUES (?, ?)
             `,
-            [metricsId, copilotPRs.total_engaged_users]
+            this.sanitizeSqlParams([metricsId, copilotPRs.total_engaged_users])
           );
 
           const prId = (prResult as any).insertId;
@@ -415,18 +424,21 @@ public async saveMetrics(metricsData: CopilotMetrics[], team_slug?: string): Pro
                 total_engaged_users
               ) VALUES (?, ?, ?, ?)
               `,
-              [
+              this.sanitizeSqlParams([
                 metricsId,
                 prId,
                 repo.name,
                 repo.total_engaged_users,
-              ]
+              ])
             );
 
             const repoId = (repoResult as any).insertId;
 
             // Insert models
             for (const model of repo.models) {
+              // 确保模型有所有必需的字段
+              const safeModel = this.ensureModelDefaults(model);
+              
               await connection.execute<RowDataPacket[]>(
                 `
                 INSERT INTO copilot_dotcom_pull_requests_repository_models (
@@ -439,15 +451,15 @@ public async saveMetrics(metricsData: CopilotMetrics[], team_slug?: string): Pro
                   total_engaged_users
                 ) VALUES (?, ?, ?, ?, ?, ?, ?)
                 `,
-                [
+                this.sanitizeSqlParams([
                   metricsId,
                   repoId,
-                  model.name,
-                  model.is_custom_model,
-                  model.custom_model_training_date,
-                  model.total_pr_summaries_created,
-                  model.total_engaged_users,
-                ]
+                  safeModel.name,
+                  safeModel.is_custom_model,
+                  safeModel.custom_model_training_date,
+                  safeModel.total_pr_summaries_created,
+                  safeModel.total_engaged_users,
+                ])
               );
             }
           }
@@ -630,7 +642,7 @@ public async saveMetrics(metricsData: CopilotMetrics[], team_slug?: string): Pro
           AND scope_name = ?
           AND team = ?
         `,
-        [this.type, this.scope_name, team_slug]
+        this.sanitizeSqlParams([this.type, this.scope_name, team_slug])
       );
 
       for (const metricsRow of metricsRows) {
@@ -684,7 +696,7 @@ public async queryMetrics(
    // query += ' ORDER BY date DESC LIMIT ? OFFSET ?';
    // params.push(per_page, (page - 1) * per_page);
 
-    const [rows] = await connection.execute<RowDataPacket[]>(query, params);
+    const [rows] = await connection.execute<RowDataPacket[]>(query, this.sanitizeSqlParams(params));
 
     const metrics: CopilotMetrics[] = [];
     for (const row of rows) {
@@ -725,15 +737,61 @@ private async removeMetrics(metricsId: number): Promise<boolean> {
     ];
 
     for (const table of tables) {
-      await connection.execute(`DELETE FROM ${table} WHERE metrics_id = ?`, [metricsId]);
+      await connection.execute(`DELETE FROM ${table} WHERE metrics_id = ?`, this.sanitizeSqlParams([metricsId]));
     }
 
-    await connection.execute(`DELETE FROM copilot_metrics WHERE id = ?`, [metricsId]);
+    await connection.execute(`DELETE FROM copilot_metrics WHERE id = ?`, this.sanitizeSqlParams([metricsId]));
     return true;
   } catch (error) {
     console.error('Error removing metrics:', error);
     return false;
   }
+}
+
+/**
+ * Ensures that SQL parameters do not contain undefined values
+ * by converting undefined to null
+ * Generated by Zhuang
+ */
+private sanitizeSqlParams(params: any[]): any[] {
+  return params.map(param => param === undefined ? null : param);
+}
+
+/**
+ * Ensures model data has all required fields with default values
+ * Generated by Zhuang
+ */
+private ensureModelDefaults(model: any): any {
+  // Deep clone to avoid modifying original object
+  const safeModel = JSON.parse(JSON.stringify(model));
+  
+  // Ensure required fields exist with default values
+  if (safeModel.total_engaged_users === undefined) {
+    safeModel.total_engaged_users = 0;
+  }
+  
+  // For copilot_ide_chat_editor_models
+  if (safeModel.total_chats === undefined) {
+    safeModel.total_chats = 0;
+  }
+  if (safeModel.total_chat_insertion_events === undefined) {
+    safeModel.total_chat_insertion_events = 0;
+  }
+  if (safeModel.total_chat_copy_events === undefined) {
+    safeModel.total_chat_copy_events = 0;
+  }
+  
+  // For copilot_dotcom_chat_models
+  if (safeModel.total_chats === undefined) {
+    safeModel.total_chats = 0;
+  }
+  
+  // For copilot_dotcom_pull_requests_repository_models
+  if (safeModel.total_pr_summaries_created === undefined) {
+    safeModel.total_pr_summaries_created = 0;
+  }
+  
+  return safeModel;
 }
 
 }
