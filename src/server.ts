@@ -573,7 +573,7 @@ const runJob = async () => {
 };
 
 // Run it once the server starts
-runJob();
+//runJob();
 
 // Run job every 12 hours
 setInterval(runJob, 12 * 60 * 60 * 1000);
@@ -583,81 +583,6 @@ app.get('/', (req, res) => {
     //res.redirect('/api/:scopeType/:scopeName/copilot/usage');
     res.redirect('/api/tenants');
 }); 
-
-// Call metrics service for a tenant, it may include team level. and team may be within organization or enterprise or enterprise 
-app.get(['/api/:scopeType/:scopeName/copilot/usage', '/api/:scopeType/:scopeName/team/:team_slug/copilot/usage'],
-    async (req: Request, res: Response): Promise<void> => {
-    try {
-        let { scopeType, scopeName, team_slug } = req.params;
-        const { since, until, page = 1, per_page = 60 } = req.query;
-        const token = req.headers['authorization']?.split(' ')[1]; // Extract token from Bearer token
-
-        if (!scopeType || !scopeName || !token) {
-            res.status(400).send('Missing required parameters: scopeType, scopeName, token');
-            return;
-        }
-
-        // Validate inputs
-        const validationResult: ScopeValidationResult = validateScope(scopeType, scopeName, token, team_slug);
-        if (!validationResult.isValid) {
-            res.status(400).send(validationResult.errorMessage);
-            return;
-        }
-
-        // Update scopeType and team_slug with normalized values
-        scopeType = validationResult.normalizedScopeType;
-        team_slug = validationResult.normalizedTeamSlug;
-
-        const tenant = new Tenant(scopeType as 'organization' | 'enterprise', scopeName as string, token as string, team_slug as string, true);
-
-        // Validate the tenant before continuing
-        const isValidTenant = await tenant.validateTenant();
-        if (!isValidTenant) {
-            res.status(400).send('Invalid tenant data');
-            return;
-        }
-
-        // Create a tenant service to save the tenant data
-        const tenantService = TenantServiceFactory.createTenantService();
-
-        // to check if the auto save is enabled, if it is, then save the tenant data. 
-        if (tenantAutoSave) {
-            // Save the tenant data
-            const isTenantSaved = await tenantService.saveTenantData(tenant);
-            if (!isTenantSaved) {
-                res.status(400).send('The tenant data is not right, please double check the token');
-                return;
-            }
-        }
-       
-
-        // Initialize UsageService with the tenant
-        const usageService = await CopilotServiceFactory.createUsageService(tenant);
-
-        // Call the saveUsageData method
-        //const isUsageDataSaved = await usageService.saveUsageData();
-        // to check if the child_team_enabled is true, if it is, then save the child team data. or just save the tenant data
-      
-        let isUsageDataSaved: boolean;
-        isUsageDataSaved = await usageService.saveUsageData();
-       
-
-        if (!isUsageDataSaved) {
-            res.status(500).send('Failed to save usage data');
-            return;
-        }
-
-        // Query usage data
-        const data = await usageService.queryUsageData(since as string, until as string, parseInt(page as string), parseInt(per_page as string));
-
-        // Send the data as response
-        res.json(data);
-    } catch (error) {
-        res.status(500).send('Error fetching metrics from storage');
-        return;
-    }
-});
-
 
 
 // Call metrics service for a tenant, it may include team level. and team may be within organization or enterprise or enterprise 
@@ -700,7 +625,7 @@ app.get(['/api/:scopeType/:scopeName/copilot/metrics', '/api/:scopeType/:scopeNa
         console.log('tenant:', tenant);
 
         // Validate the tenant before continuing
-        const isValidTenant = await tenant.validateTenant();
+        const isValidTenant = await tenant.validateApiAccess();
         if (!isValidTenant) {
             console.log('Invalid tenant data:', isValidTenant);
             res.status(400).send('Invalid tenant data');
@@ -780,7 +705,7 @@ app.get(['/api/:scopeType/:scopeName/copilot/billing/seats', '/api/:scopeType/:s
         const tenant = new Tenant(scopeType as 'organization' | 'enterprise', scopeName as string, token as string, team_slug,true);
 
         // Validate the tenant before continue
-        await tenant.validateTenant();
+        await tenant.validateApiAccess();
 
         // Creat a tenantservice to save the tenant data
         const tenantService = TenantServiceFactory.createTenantService();
@@ -861,7 +786,7 @@ app.post('/api/tenants', async (req, res): Promise<void> => {
         const tenant = new Tenant(scopeType, scopeName, token,team_slug, isActive);
         
         // Validate the tenant before saving
-        await tenant.validateTenant();
+        await tenant.validateApiAccess();
 
         // Use TenantServiceFactory to create the appropriate ITenantStorage implementation
         const tenantStorage: ITenantStorage = TenantServiceFactory.createTenantService();
@@ -900,7 +825,7 @@ app.post('/api/tenants/delete',async (req: Request, res: Response): Promise<void
         const tenant = new Tenant(scopeType, scopeName, token,team, true);
         
         // Validate the tenant before saving
-        await tenant.validateTenant();
+        await tenant.validateApiAccess();
 
         // Use TenantServiceFactory to create the appropriate ITenantStorage implementation
         const tenantStorage: ITenantStorage = TenantServiceFactory.createTenantService();
